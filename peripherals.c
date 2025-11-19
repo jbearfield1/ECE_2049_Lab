@@ -71,7 +71,7 @@ void setLeds(unsigned char state)
  * Enable a PWM-controlled buzzer on P3.5
  * This function makes use of TimerB0.
  */
-void BuzzerOn(int freq)
+void BuzzerOn(int period)
 {
     // Initialize PWM output on P3.5, which corresponds to TB0.5
     P3SEL |= BIT5; // Select peripheral output mode for P3.5
@@ -83,7 +83,7 @@ void BuzzerOn(int freq)
     // Now configure the timer period, which controls the PWM period
     // Doing this with a hard coded values is NOT the best method
     // We do it here only as an example. You will fix this in Lab 2.
-    TB0CCR0   = freq;                    // Set the PWM period in ACLK ticks
+    TB0CCR0   = period;                    // Set the PWM period in ACLK ticks
     TB0CCTL0 &= ~CCIE;                  // Disable timer interrupts
 
     // Configure CC register 5, which is connected to our PWM pin TB0.5

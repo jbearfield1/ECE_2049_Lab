@@ -17,6 +17,9 @@
 void swDelay(char numLoops);
 void config_buttons(void);
 uint8_t get_button_states(void);
+int pitchToTicks(int pitch);
+int pitchToLED(int pitch);
+int playNote(int pitch);
 
 
 // Declare globals here
@@ -25,6 +28,66 @@ int gameSeq[MAX_SEQ_LEN];
 int seqLen = 0;
 int playerPos = 0;
 int i;
+
+int pitches[] = {0, 880, 466, 494, 523, 554, 587, 622, 659, 698, 740, 784, 831};
+
+struct Note {
+    int pitch;
+    int duration;
+};
+
+struct Note song[] = {
+                      // --- A SECTION ---
+                      {4, 8}, {0, 8},
+                      {4, 8}, {0, 8},
+                      {11, 12}, {0, 8},
+                      {11, 12}, {0, 8},
+                      {1, 8}, {0, 8},
+                      {1, 8}, {0, 8},
+                      {11, 16}, {0, 8},
+
+                      {9, 8}, {0, 8},
+                      {9, 8}, {0, 8},
+                      {8, 12}, {0, 8},
+                      {8, 12}, {0, 8},
+                      {6, 8}, {0, 8},
+                      {6, 8}, {0, 8},
+                      {4, 16}, {0, 8},
+
+                      // --- B SECTION ---
+                      {11, 8}, {0, 8},
+                      {11, 8}, {0, 8},
+                      {9, 12}, {0, 8},
+                      {9, 12}, {0, 8},
+                      {8, 8}, {0, 8},
+                      {8, 8}, {0, 8},
+                      {6, 16}, {0, 8},
+
+                      {11, 8}, {0, 8},
+                      {11, 8}, {0, 8},
+                      {9, 12}, {0, 8},
+                      {9, 12}, {0, 8},
+                      {8, 8}, {0, 8},
+                      {8, 8}, {0, 8},
+                      {6, 16}, {0, 8},
+
+                      // --- A SECTION REPEAT ---
+                      {4, 8}, {0, 8},
+                      {4, 8}, {0, 8},
+                      {11, 12}, {0, 8},
+                      {11, 12}, {0, 8},
+                      {1, 8}, {0, 8},
+                      {1, 8}, {0, 8},
+                      {11, 16}, {0, 8},
+
+                      {9, 8}, {0, 8},
+                      {9, 8}, {0, 8},
+                      {8, 12}, {0, 8},
+                      {8, 12}, {0, 8},
+                      {6, 8}, {0, 8},
+                      {6, 8}, {0, 8},
+                      {4, 16}, {0, 8}
+                  };
 
 //Software Delay to run useless loops
 //// Function Prototypes
@@ -361,8 +424,38 @@ void main(void) {
     uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
 //    uint16_t one_second_ticks = TICKS_PER_SECOND;
     while(1) {
-        do_countdown();
+        playNote(song[current_note].pitch);
+        swDelay(song[current_note].duration);
+        current_note++;
+        if (current_note == 84)
+            current_note = 0;
     }
+}
+
+
+int pitchToTicks(int pitch){
+    int ticks = 32768 / pitches[pitch];
+    return ticks;
+}
+
+int pitchToLED(int pitch){
+    setLeds(BIT4 >> ((pitch % 4) + 1));
+    return (pitch % 4) + 1;
+}
+
+int playNote(int pitch)
+{
+    int led = 0;
+
+    if(pitch == 0){
+        BuzzerOff();
+        setLeds(led);
+    } else{
+        BuzzerOn(pitchToTicks(pitch));
+        led = pitchToLED(pitch);
+        setLeds(BIT4 >> led);
+    }
+    return led;
 }
 
 
