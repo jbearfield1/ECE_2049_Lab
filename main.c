@@ -15,17 +15,9 @@
 // Function Prototypes
 #define MAX_SEQ_LEN 32
 void swDelay(char numLoops);
-void initButtons(void) {
-    // S1 (P2.1)
-    P2DIR &= ~BIT1;
-    P2REN |= BIT1;
-    P2OUT |= BIT1;
+void config_buttons(void);
+uint8_t get_button_states(void);
 
-    // S2 (P1.1)
-    P1DIR &= ~BIT1;
-    P1REN |= BIT1;
-    P1OUT |= BIT1;
-}
 
 // Declare globals here
 enum GAME_STATE {WELCOME = 0, PLAY_SEQ = 1, CHECK_INP = 2, FAIL_ERROR = 3};
@@ -228,5 +220,35 @@ void main(void)
             welcomeScreen(&state);
             break;
         }
-        }
     }
+}
+
+void config_buttons(void) {
+    // S1 (P7.0)
+    P7DIR &= ~BIT0;
+    P7REN |= BIT0;
+    P7OUT |= BIT0;
+
+    // S2 (P3.6)
+    P3DIR &= ~BIT6;
+    P3REN |= BIT6;
+    P3OUT |= BIT6;
+
+    // S3 (P2.2)
+    P2DIR &= ~BIT2;
+    P2REN |= BIT2;
+    P2OUT |= BIT2;
+
+    // S4 (P7.4)
+    P7DIR &= ~BIT4;
+    P7REN |= BIT4;
+    P7OUT |= BIT4;
+}
+
+uint8_t get_button_states(void) {
+	uint8_t s1_state = !(P7IN & BIT0);
+	uint8_t s2_state = !(P3IN & BIT6);
+	uint8_t s3_state = !(P2IN & BIT2);
+	uint8_t s4_state = !(P7IN & BIT4);
+	return (s4_state << 3) | (s3_state << 2) | (s2_state << 1) | s1_state;
+}
