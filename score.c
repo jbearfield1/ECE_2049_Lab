@@ -6,7 +6,7 @@
  */
 
 #include "score.h"
-#include "buttons.h"
+//#include "button.h"
 
 static inline uint8_t ExpectedBtnMask(uint8_t ledId) {
     static const uint8_t map[4] = { 0x01, 0x02, 0x04, 0x08 }; // S1,S2,S3,S4

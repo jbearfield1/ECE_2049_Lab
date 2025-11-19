@@ -49,7 +49,7 @@ void swDelay(char numLoops) {
 //          Turn all LEDs on
             setLeds(0x0F);
 
-            Turn on Buzzer
+            // Turn on Buzzer
             BuzzerOn(128);
 
             swDelay(5);
@@ -314,7 +314,7 @@ void do_countdown() {
         P1OUT |= (BIT0 | BIT6);
     } else {
         lcd_clear();
-        P1OUT &= ~(BIT0 | BIT66);
+        P1OUT &= ~(BIT0 | BIT6);
         currentState = PLAY_SONG;
         next_state_tick_target = global_timer_ticks;
         current_note_index = 0;
@@ -336,7 +336,7 @@ __interrupt void Timer_A2_ISR(void) {
         leap++;
     }
     else {
-        leap = 0
+        leap = 0;
     }
 }
 
@@ -361,7 +361,7 @@ void setupTimerA2(){
 
 #pragma vector = TIMER2_A0_VECTOR
 __interrupt void Timer_A2_ISR(void) {
-    timer++
+    timer++;
 }
 
 
