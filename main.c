@@ -350,6 +350,7 @@ uint8_t get_button_states(void) {
 #define COUNTDOWN_TICKS TICKS_PER_SECOND * 3
 volatile uint32_t global_timer_ticks = 0;
 volatile uint32_t next_state_tick_target = 0;
+enum GAME_STATE {WELCOME = 0, PLAY_SOUND = 1, WIN = 2, LOSE = 3};
 
 void configure_timer_a2() {
     TA2CTL = TASSEL_1 + MC_1 + ID_0 + TACLR;
@@ -415,22 +416,22 @@ void do_countdown() {
     }
 }
 
-void main(void) {
-    WDTCTL = WDTPW | WDTHOLD;
-    initLeds();
-    configure_timer_a2();
-    __enable_interrupt();
-    next_state_tick_target = global_timer_ticks;
-    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
-//    uint16_t one_second_ticks = TICKS_PER_SECOND;
-    while(1) {
-        playNote(song[current_note].pitch);
-        swDelay(song[current_note].duration);
-        current_note++;
-        if (current_note == 84)
-            current_note = 0;
-    }
-}
+//void main(void) {
+//    WDTCTL = WDTPW | WDTHOLD;
+//    initLeds();
+//    configure_timer_a2();
+//    __enable_interrupt();
+//    next_state_tick_target = global_timer_ticks;
+//    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
+////    uint16_t one_second_ticks = TICKS_PER_SECOND;
+//    while(1) {
+//        playNote(song[current_note].pitch);
+//        swDelay(song[current_note].duration);
+//        current_note++;
+//        if (current_note == 84)
+//            current_note = 0;
+//    }
+//}
 
 
 int pitchToTicks(int pitch){
@@ -456,134 +457,52 @@ int playNote(int pitch)
         setLeds(BIT4 >> led);
     }
     return led;
+
 }
 
+//// Main
+void main(void)
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+{
+    WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer. Always need to stop this!!
+                                 // You can then configure it properly, if desired
+    // Useful code starts here
+    // Initialize important HW
+    initLeds();
+    initButtons();
+    configDisplay();
+    configKeypad();
+    //Randomize the game every time
+    srand(time(NULL));
 
+    enum GAME_STATE state;
+    welcomeScreen(&state);
+    char currKey = 0;
+    char dispKey;
+    char keyPressed;
+    while (1)
+    {
 
-//volatile unsigned long timer = 0;
-//volatile unsigned char leap = 0;
-//
-//#pragma vector = TIMER2_A0_VECTOR
-//__interrupt void Timer_A2_ISR(void) {
-//    if (leap < 1819) {
-//        timer++;
-//        leap++;
-//    }
-//    else {
-//        leap = 0
-//    }
-//}
-//
-//
-//void config() {
-//    P5SEL |= BIT2 | BIT3 | BIT4 | BIT5;
-//    UCSCTL6 &= ~(XT2DRIVE_3 | XT2OFF);
-//    UCSCTL6 |= XT2DRIVE_1;
-//    UCSCTL4 &= ~SELS_7;
-//    UCSCTL4 |= SELS_5;
-//}
-//
-//
-//volatile unsigned long timer = 0;
-//void setupTimerA2(){
-//    TA2CTL = TASSEL_2 | MC_1 | ID_0; //divider = 1
-//    //0.25ms = (max_count + 1) * 1/f
-//    //max_count = 1999
-//    TA2CCR0 = 1999; // max_count + 1 = 2000 => 0.25ms
-//    TA2CCTL0 = CCIE; //Enable the interrupt
-//}
-//
-//#pragma vector = TIMER2_A0_VECTOR
-//__interrupt void Timer_A2_ISR(void) {
-//    timer++
-//    }
-//
-//
-//void countToDisplay(int count) {
-//    long unsigned int remaining = count * 2.5;
-//    char time_str[7];
-//    for (int i = 6; i >= 0; --i) {
-//        if (i == 2) {
-//            time_str[i] = '.';
-//        } else {
-//            time_str[i] = (remaining % 10) + '0';
-//            remaining /= 10;
-//        }
-//    }
-//}
-//
-//
-//#include "msp430.h"
-//void config() {
-//    //configure P2 digit I/O and direction
-//
-//    //Configuring the INPUT
-//    //First clear P2.2 and P2.3
-//    P2SEL &= ~(BIT2 | BIT3);
-//    //Make P2.2 and P2.3 as inputs
-//    P2DIR &= ~(BIT2 | BIT3);
-//
-//    //Configuring the OUTPUT
-//    //First clear P2.6 and P2.7
-//    P2SEL &= ~(BIT6 | BIT7);
-//    //P2.6 and P2.7 as outputs
-//    P2DIR |= (BIT6 | BIT7);
-//
-//    //Set internal pull up or pull down resistors if needed
-//
-//    //Enable pull up resistors for P2.2 and P2.3
-//    P2REN |= (BIT2 | BIT3);
-//    //Set pull up resistors for P2.2 and P2.3
-//    P2OUT |= (BIT2 | BIT3);
-//}
-//
-//
-////use P2IN as input
-//unsigned char read_switches() {
-//    unsigned char switches = 0;
-//    //Checking if S1 is pushed and S2 is not
-//    //Since pushing will be logic level 0
-//    if (!(P2IN & BIT2) && (P2IN & BIT3)) {
-//        switches = 1;
-//    }
-//    //Checking if S2 is pushed and S1 is not
-//    else if ((P2IN & BIT2) && !(P2IN & BIT3)) {
-//        switches = 2;
-//    }
-//    //Checking if both buttons are pushed
-//    else if (!(P2IN & BIT2) && !(P2IN & BIT3)) {
-//        switches = 3;
-//    }
-//    else {
-//        //If none are pushed set the read switches value to 0
-//        switches = 0;
-//    }
-//}
-//
-//void switches_to_leds() {
-//    unsigned char switch_values;
-//    //Using the function from the previous part to get the values 0, 1, 2 or 3
-//    switch_values = read_switches();
-//    //Initialize by clearing bit 6 and 7, that is turning off all the LEDs
-//    P2OUT &= ~(BIT6 | BIT7);
-//    //Checking to see if read_switches passes in 1. If so, turn on LED1, which is connected to P2.7
-//    if (switch_values == 1) {
-//        P2OUT |= BIT7;
-//    }
-//    //Checking to see if read_switches passes in 2. If so, turn on LED2, which is connected to P2.6
-//    else if (switch_values == 2) {
-//        P2OUT |= BIT6;
-//    }
-//    //Checking for switch_values 0 and 3 aren't needed since the initial statement already turns off all the LEDs
-//}
-//
-//void runTimerA2(void) {
-//    TA2CTL = TASSEL_1 + MC_1 + ID_0;
-//    TA2CCR0 = 883;
-//    TA2CCTL0 = CCIE;
-//}
+        if (checkButtons()) {
+                    welcomeScreen(&state);
+                    seqLen = 0;
+                }
+        switch(state) {
+        case WELCOME:
+            state = PLAY_SOUND;
+            break;
+        case PLAY_SOUND:
+            state = WIN;
+            state = LOSE;
+            break;
+        case WIN:
+            //congratulations()
+            welcomeScreen(&state);
+            break;
+        case LOSE:
+            //playerHumiliation();
+            welcomeScreen(&state);
+            break;
+        }
+        }
+    }
