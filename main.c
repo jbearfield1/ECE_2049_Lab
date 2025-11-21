@@ -20,10 +20,10 @@ uint8_t get_button_states(void);
 int pitchToTicks(int pitch);
 int pitchToLED(int pitch);
 int playNote(int pitch);
+bool countdown = 0;
 
 
 // Declare globals here
-enum GAME_STATE {WELCOME = 0, PLAY_SEQ = 1, CHECK_INP = 2, FAIL_ERROR = 3};
 int gameSeq[MAX_SEQ_LEN];
 int seqLen = 0;
 int playerPos = 0;
@@ -151,6 +151,182 @@ uint8_t get_button_states(void) {
 	uint8_t s4_state = !(P7IN & BIT4);
 	return (s4_state << 3) | (s3_state << 2) | (s2_state << 1) | s1_state;
 }
+
+#define TIMER_RESOLUTION_MS 5
+#define TICKS_PER_SECOND (32768 / 163)
+#define COUNTDOWN_TICKS TICKS_PER_SECOND * 3
+volatile uint32_t global_timer_ticks = 0;
+volatile uint32_t next_state_tick_target = 0;
+enum GAME_STATE {WELCOME = 0, PLAY_SOUND = 1, WIN = 2, LOSE = 3};
+
+void configure_timer_a2() {
+    TA2CTL = TASSEL_1 + MC_1 + ID_0 + TACLR;
+    // 32768 Hz / 200 Hz = 163.84
+    TA2CCR0 = 163;
+    TA2CCTL0 |= CCIE;
+}
+
+#pragma vector=TIMER2_A0_VECTOR
+__interrupt void Timer_A2_ISR(void) {
+    global_timer_ticks++;
+}
+
+
+void buzzer_off() {
+    TB0CTL &= ~MC_1;
+    TB0CCR5 = 0;
+}
+
+void do_countdown(enum GAME_STATE* state) {
+//    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
+    uint16_t one_second_ticks = TICKS_PER_SECOND;
+    if (global_timer_ticks < (next_state_tick_target + (1 * one_second_ticks))) {
+        Graphics_drawStringCentered(&g_sContext, "3", 1, 48, 48, OPAQUE_TEXT);
+        Graphics_flushBuffer(&g_sContext);
+        setLeds(BIT3);
+    } else if (global_timer_ticks < (next_state_tick_target + (2 * one_second_ticks))) {
+        Graphics_drawStringCentered(&g_sContext, "2", 1, 48, 48, OPAQUE_TEXT);
+        Graphics_flushBuffer(&g_sContext);
+        setLeds(BIT2);
+    } else if (global_timer_ticks < (next_state_tick_target + (3 * one_second_ticks))) {
+        Graphics_drawStringCentered(&g_sContext, "1", 1, 48, 48, OPAQUE_TEXT);
+        Graphics_flushBuffer(&g_sContext);
+        setLeds(BIT1);
+    } else {
+        Graphics_drawStringCentered(&g_sContext, "GO!", 3, 48, 48, OPAQUE_TEXT);
+        Graphics_flushBuffer(&g_sContext);
+        setLeds(0);
+        countdown = 0;
+        *state = PLAY_SOUND;
+    }
+//    next_state_tick_target = global_timer_ticks;
+}
+
+// Function to initialize the start of the game before the State Machine, to avoid redrawing in loop
+    void welcomeScreen(enum GAME_STATE *state) {
+        *state = WELCOME;
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawStringCentered(&g_sContext, "GUITAR HERO", AUTO_STRING_LENGTH, 48, 30, TRANSPARENT_TEXT);
+        Graphics_drawStringCentered(&g_sContext, "Press * to Play", AUTO_STRING_LENGTH, 48, 50, TRANSPARENT_TEXT);
+        Graphics_drawStringCentered(&g_sContext, "Press # to Reset", AUTO_STRING_LENGTH, 48, 70, TRANSPARENT_TEXT);
+        Graphics_flushBuffer(&g_sContext);
+    }
+
+    //Function to check if the # buttons are pressed
+    char checkButton(char currKey) {
+        if (currKey == '#') {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+    }
+
+
+//void main(void) {
+//    WDTCTL = WDTPW | WDTHOLD;
+//    initLeds();
+//    configure_timer_a2();
+//    __enable_interrupt();
+//    next_state_tick_target = global_timer_ticks;
+//    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
+////    uint16_t one_second_ticks = TICKS_PER_SECOND;
+//    while(1) {
+//        playNote(song[current_note].pitch);
+//        swDelay(song[current_note].duration);
+//        current_note++;
+//        if (current_note == 84)
+//            current_note = 0;
+//    }
+//}
+
+
+int pitchToTicks(int pitch){
+    int ticks = 32768 / pitches[pitch];
+    return ticks;
+}
+
+int pitchToLED(int pitch){
+    setLeds(BIT4 >> ((pitch % 4) + 1));
+    return (pitch % 4) + 1;
+}
+
+int playNote(int pitch)
+{
+    int led = 0;
+
+    if(pitch == 0){
+        BuzzerOff();
+        setLeds(led);
+    } else{
+        BuzzerOn(pitchToTicks(pitch));
+        led = pitchToLED(pitch);
+        setLeds(BIT4 >> led);
+    }
+    return led;
+
+}
+
+//// Main
+void main(void)
+
+{
+    WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer. Always need to stop this!!
+                                 // You can then configure it properly, if desired
+    // Useful code starts here
+    // Initialize important HW
+    initLeds();
+//    initButtons();
+    configDisplay();
+    configKeypad();
+    configure_timer_a2();
+    __enable_interrupt();
+    //Randomize the game every time
+//    srand(time(NULL));
+
+    enum GAME_STATE state;
+    welcomeScreen(&state);
+    char currKey = 0;
+//    char dispKey;
+//    char keyPressed;
+    while (1)
+    {
+        currKey = getKey();
+        if (checkButton(currKey)) {
+            welcomeScreen(&state);
+            setLeds(0);
+        }
+        switch(state) {
+        case WELCOME:
+            currKey = getKey();
+            if (currKey == '*') {
+                Graphics_clearDisplay(&g_sContext);
+                next_state_tick_target = global_timer_ticks;
+                countdown = 1;
+            }
+            if (countdown) {
+                do_countdown(&state);
+            }
+            break;
+        case PLAY_SOUND:
+            Graphics_clearDisplay(&g_sContext);
+            state = WIN;
+            state = LOSE;
+            break;
+        case WIN:
+            //congratulations()
+            welcomeScreen(&state);
+            break;
+        case LOSE:
+            //playerHumiliation();
+            welcomeScreen(&state);
+            break;
+        }
+        }
+    }
+
+
+
 //
 //
 //    //Function that executes our game over segment. Flashing all LEDs, and displaying game over message
@@ -344,165 +520,3 @@ uint8_t get_button_states(void) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define TIMER_RESOLUTION_MS 5
-#define TICKS_PER_SECOND (32768 / 163)
-#define COUNTDOWN_TICKS TICKS_PER_SECOND * 3
-volatile uint32_t global_timer_ticks = 0;
-volatile uint32_t next_state_tick_target = 0;
-enum GAME_STATE {WELCOME = 0, PLAY_SOUND = 1, WIN = 2, LOSE = 3};
-
-void configure_timer_a2() {
-    TA2CTL = TASSEL_1 + MC_1 + ID_0 + TACLR;
-    // 32768 Hz / 200 Hz = 163.84
-    TA2CCR0 = 163;
-    TA2CCTL0 |= CCIE;
-}
-
-#pragma vector=TIMER2_A0_VECTOR
-__interrupt void Timer_A2_ISR(void) {
-    global_timer_ticks++;
-//    if (global_timer_ticks % 20 == 0) {
-//        setLeds(BIT1);
-//    }
-//    else {
-//        setLeds(0);
-//    }
-}
-
-//uint16_t freq_to_ccr0(NotePitch freq_hz) {
-//    if (freq_hz == 0) {
-//        return 0;
-//    }
-//    return (uint16_t)(32768.0 / (float)freq_hz);
-//}
-
-//void buzzer_on(NotePitch pitch) {
-//    uint16_t ccr0_val = freq_to_ccr0(pitch);
-//    if (ccr0_val > 0) {
-//        TB0CCR0 = ccr0_val;
-//        TB0CCR5 = ccr0_val / 2;
-//        TB0CTL |= MC_1;
-//    }
-//}
-
-void buzzer_off() {
-    TB0CTL &= ~MC_1;
-    TB0CCR5 = 0;
-}
-
-void do_countdown() {
-    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
-    uint16_t one_second_ticks = TICKS_PER_SECOND;
-
-    if (elapsed_ticks < (1 * one_second_ticks)) {
-//        lcd_message("3...");
-        setLeds(BIT0);
-    } else if (elapsed_ticks < (2 * one_second_ticks)) {
-//        lcd_message("2..");
-        setLeds(BIT1);
-    } else if (elapsed_ticks < (3 * one_second_ticks)) {
-//        lcd_message("1.");
-        setLeds(BIT2);
-    } else if (elapsed_ticks < (4 * one_second_ticks)) {
-//        lcd_message("GO!");
-        setLeds(BIT3);
-    } else {
-//        lcd_clear();
-        setLeds(0);
-//        currentState = PLAY_SONG;
-        next_state_tick_target = global_timer_ticks;
-//        current_note_index = 0;
-    }
-}
-
-//void main(void) {
-//    WDTCTL = WDTPW | WDTHOLD;
-//    initLeds();
-//    configure_timer_a2();
-//    __enable_interrupt();
-//    next_state_tick_target = global_timer_ticks;
-//    uint32_t elapsed_ticks = global_timer_ticks - next_state_tick_target;
-////    uint16_t one_second_ticks = TICKS_PER_SECOND;
-//    while(1) {
-//        playNote(song[current_note].pitch);
-//        swDelay(song[current_note].duration);
-//        current_note++;
-//        if (current_note == 84)
-//            current_note = 0;
-//    }
-//}
-
-
-int pitchToTicks(int pitch){
-    int ticks = 32768 / pitches[pitch];
-    return ticks;
-}
-
-int pitchToLED(int pitch){
-    setLeds(BIT4 >> ((pitch % 4) + 1));
-    return (pitch % 4) + 1;
-}
-
-int playNote(int pitch)
-{
-    int led = 0;
-
-    if(pitch == 0){
-        BuzzerOff();
-        setLeds(led);
-    } else{
-        BuzzerOn(pitchToTicks(pitch));
-        led = pitchToLED(pitch);
-        setLeds(BIT4 >> led);
-    }
-    return led;
-
-}
-
-//// Main
-void main(void)
-
-{
-    WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer. Always need to stop this!!
-                                 // You can then configure it properly, if desired
-    // Useful code starts here
-    // Initialize important HW
-    initLeds();
-    initButtons();
-    configDisplay();
-    configKeypad();
-    //Randomize the game every time
-    srand(time(NULL));
-
-    enum GAME_STATE state;
-    welcomeScreen(&state);
-    char currKey = 0;
-    char dispKey;
-    char keyPressed;
-    while (1)
-    {
-
-        if (checkButtons()) {
-                    welcomeScreen(&state);
-                    seqLen = 0;
-                }
-        switch(state) {
-        case WELCOME:
-            state = PLAY_SOUND;
-            break;
-        case PLAY_SOUND:
-            state = WIN;
-            state = LOSE;
-            break;
-        case WIN:
-            //congratulations()
-            welcomeScreen(&state);
-            break;
-        case LOSE:
-            //playerHumiliation();
-            welcomeScreen(&state);
-            break;
-        }
-        }
-    }
