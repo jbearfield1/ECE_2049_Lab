@@ -203,18 +203,22 @@ void main(void)
     welcomeScreen(&state);
     char currKey = 0;
 
+	int missedNotes = 0;
+	bool notePlayed = false;
+
     while (1)
     {
         currKey = getKey();
         if (checkButton(currKey)) {
             welcomeScreen(&state);
             setLeds(0);
-            BuzzerOff();
         }
         switch(state) {
         case WELCOME:
+            BuzzerOff();
             current_note = 0;
             next_note_tick = 0;
+            missedNotes = 0;
 
             currKey = getKey();
             if (currKey == '*') {
@@ -231,25 +235,56 @@ void main(void)
         case PLAY_SOUND:
             if (next_note_tick < global_timer_ticks)
             {
+                // increments number of missed notes if user missed their window to press button
+                if (!notePlayed) {
+                    missedNotes++;
+                }
+
                 current_LED = playNote(song[current_note].pitch);
-                next_note_tick = global_timer_ticks + (song[current_note].duration * 10);
+                next_note_tick = global_timer_ticks + (song[current_note].duration * 20);
                 current_note++;
+
+                // user has not played the new note yet
+                if (current_LED == 0)
+                    notePlayed = true;
+                else
+                    notePlayed = false;
+            }
+
+            // logs that the user pressed the required note
+            if (get_button_states() == (1 << (current_LED - 1)) && !notePlayed) {
+				notePlayed = true;
+			// wrong button press missed locks out another button press and adds missed note
+			} else if (get_button_states() && get_button_states() != (1 << (current_LED - 1)) && !notePlayed) {
+			    notePlayed = true;
+                missedNotes++;
+			}
+
+            // fails the user if they miss too many notes
+            if (missedNotes >= 10) {
+                Graphics_clearDisplay(&g_sContext);
+                state = LOSE;
             }
 
 
+            // user wins if they make it through the entire song
             if (current_note == 84)
             {
                 state = WIN;
-//                state = LOSE;
             }
 
             break;
         case WIN:
             setLeds(1);
             //congratulations()
-            //welcomeScreen(&state);
+            welcomeScreen(&state);
             break;
         case LOSE:
+            BuzzerOff();
+            Graphics_drawStringCentered(&g_sContext, "You Lost", AUTO_STRING_LENGTH, 48, 50, TRANSPARENT_TEXT);
+            Graphics_drawStringCentered(&g_sContext, "Press # to Reset", AUTO_STRING_LENGTH, 48, 70, TRANSPARENT_TEXT);
+            Graphics_flushBuffer(&g_sContext);
+
             //playerHumiliation();
             //welcomeScreen(&state);
             break;
