@@ -106,6 +106,34 @@ struct Note song[] = {
                       {4, 16}, {0, 8}
                   };
 
+struct Note taunt_song[] = {
+    {7, 8}, {0, 4},
+    {6, 8}, {0, 4},
+    {5, 8}, {0, 4},
+    {4, 50}, {0, 8}
+};
+
+struct Note victory_song[] = {
+    // --- PART 1: Ascending Triplet 1 (Da-da-da) ---
+    {4, 6},  {0, 2}, // C
+    {8, 6},  {0, 2}, // E
+    {11, 6}, {0, 2}, // G
+
+    // --- PART 2: Ascending Triplet 2 (Da-da-da) ---
+    {4, 6},  {0, 2}, // C
+    {8, 6},  {0, 2}, // E
+    {11, 6}, {0, 2}, // G
+
+    // --- PART 3: The "Victory" Melody ---
+    {1, 12}, {0, 2}, // High A
+    {11, 12},{0, 2}, // G
+    {8, 12}, {0, 2}, // E
+    {4, 12}, {0, 2}, // C
+
+    // --- PART 4: Grand Finish ---
+    {11, 8}, {0, 2}, // G (Setup)
+    {1, 40}, {0, 20} // High A (Long finish)
+};
 
 //Software Delay to run useless loops
 void swDelay(char numLoops) {
@@ -241,7 +269,7 @@ void main(void)
                 }
 
                 current_LED = playNote(song[current_note].pitch);
-                next_note_tick = global_timer_ticks + (song[current_note].duration * 20);
+                next_note_tick = global_timer_ticks + (song[current_note].duration * 8);
                 current_note++;
 
                 // user has not played the new note yet
@@ -261,32 +289,59 @@ void main(void)
 			}
 
             // fails the user if they miss too many notes
-            if (missedNotes >= 10) {
+            if (missedNotes >= 5) {
+                current_note = 0;
+                next_note_tick = 0;
+                BuzzerOff();
                 Graphics_clearDisplay(&g_sContext);
                 state = LOSE;
             }
 
 
             // user wins if they make it through the entire song
+            //84 total notes
             if (current_note == 84)
             {
+                current_note = 0;
+                next_note_tick = 0;
+                BuzzerOff();
+                Graphics_clearDisplay(&g_sContext);
                 state = WIN;
             }
 
             break;
         case WIN:
-            setLeds(1);
+            if (next_note_tick < global_timer_ticks) {
+                if (current_note == 24) {
+                    current_note = 0;
+                }
+                playNote(victory_song[current_note].pitch);
+                next_note_tick = global_timer_ticks + (victory_song[current_note].duration);
+                current_note++;
+            }
             //congratulations()
-            welcomeScreen(&state);
+//            if (current_note <= 24) {
+            Graphics_drawStringCentered(&g_sContext, "You Won! :)", AUTO_STRING_LENGTH, 48, 40, TRANSPARENT_TEXT);
+            Graphics_drawStringCentered(&g_sContext, "Press # to Reset", AUTO_STRING_LENGTH, 48, 60, TRANSPARENT_TEXT);
+            Graphics_flushBuffer(&g_sContext);
+//            }
+//            else {
+//                Graphics_clearDisplay(&g_sContext);
+//                welcomeScreen(&state);
+//            }
             break;
         case LOSE:
-            BuzzerOff();
-            Graphics_drawStringCentered(&g_sContext, "You Lost", AUTO_STRING_LENGTH, 48, 50, TRANSPARENT_TEXT);
-            Graphics_drawStringCentered(&g_sContext, "Press # to Reset", AUTO_STRING_LENGTH, 48, 70, TRANSPARENT_TEXT);
+            if (next_note_tick < global_timer_ticks) {
+                if (current_note == 8) {
+                    current_note = 0;
+                }
+                playNote(taunt_song[current_note].pitch);
+                next_note_tick = global_timer_ticks + (taunt_song[current_note].duration * 5);
+                current_note++;
+            }
+            Graphics_drawStringCentered(&g_sContext, "You Lost :(", AUTO_STRING_LENGTH, 48, 40, TRANSPARENT_TEXT);
+            Graphics_drawStringCentered(&g_sContext, "Press # to Reset", AUTO_STRING_LENGTH, 48, 60, TRANSPARENT_TEXT);
             Graphics_flushBuffer(&g_sContext);
-
-            //playerHumiliation();
-            //welcomeScreen(&state);
             break;
         }
         }
