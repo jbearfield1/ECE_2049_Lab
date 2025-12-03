@@ -1,5 +1,6 @@
 #include <msp430.h>
 #include "peripherals.h"
+#include <stdio.h>
 
 // --- Global Variables ---
 volatile unsigned long global_time_seconds = 29089811;
@@ -8,6 +9,8 @@ volatile unsigned char new_second_event = 0;
 // --- Function Prototypes ---
 void configure_timer_a2(void);
 void displayTime(unsigned long int inTime);
+void displayTemp(float inAvgTempC);
+void floatTempToArray(float temp, char unit, char* tempStr);
 
 
 void configure_timer_a2() {
@@ -79,10 +82,39 @@ void displayTime(unsigned long int inTime) {
     timeStr[7] = (sec % 10) + '0';
     timeStr[8] = '\0';
 
-    Graphics_drawStringCentered(&g_sContext, (uint8_t *)dateStr, AUTO_STRING_LENGTH, 48, 35, OPAQUE_TEXT);
-    Graphics_drawStringCentered(&g_sContext, (uint8_t *)timeStr, AUTO_STRING_LENGTH, 48, 55, OPAQUE_TEXT);
+    Graphics_drawStringCentered(&g_sContext, (uint8_t *)dateStr, AUTO_STRING_LENGTH, 48, 25, OPAQUE_TEXT);
+    Graphics_drawStringCentered(&g_sContext, (uint8_t *)timeStr, AUTO_STRING_LENGTH, 48, 40, OPAQUE_TEXT);
 
     Graphics_flushBuffer(&g_sContext);
+}
+
+void displayTemp(float inAvgTempC){
+    float inAvgTempF = (inAvgTempC * (9.0/5.0)) + 32;
+
+    char tempCStr[8];
+    char tempFStr[8];
+
+    floatTempToArray(inAvgTempC, 'C', tempCStr);
+    floatTempToArray(inAvgTempF, 'F', tempFStr);
+
+    Graphics_drawStringCentered(&g_sContext, (uint8_t *)tempCStr, AUTO_STRING_LENGTH, 48, 65, OPAQUE_TEXT);
+    Graphics_drawStringCentered(&g_sContext, (uint8_t *)tempFStr, AUTO_STRING_LENGTH, 48, 75, OPAQUE_TEXT);
+
+    Graphics_flushBuffer(&g_sContext);
+
+}
+
+void floatTempToArray(float temp, char unit, char* tempStr){
+
+    tempStr[0] = (int)(temp / 100) + '0';
+    tempStr[1] = (((int)temp % 100) / 10) + '0';
+    tempStr[2] = ((int)temp % 10) + '0';
+    tempStr[3] = '.';
+    tempStr[4] = ((int)(temp*10) % 10) + '0';
+    tempStr[5] = ' ';
+    tempStr[6] = unit;
+    tempStr[7] = '\0';
+
 }
 
 void main(void)
@@ -104,6 +136,7 @@ void main(void)
         if (new_second_event) {
             new_second_event = 0;
             displayTime(global_time_seconds);
+            displayTemp(40.5);
         }
     }
 }

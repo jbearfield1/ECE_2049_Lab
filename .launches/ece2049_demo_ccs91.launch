@@ -8,7 +8,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.MSP430F5529.ccxml.TI MSP430 USB1/MSP430" value="ece2049_demo_ccs91"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:ece2049_demo_ccs91}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.C:\Users\Dante\workspace_v9\ece2049_demo_ccs91\targetConfigs\MSP430F5529.ccxml.TI MSP430 USB1/MSP430" value="C:/Users\Dante\workspace_v9\ece2049_demo_ccs91\Debug\ece2049_demo_ccs91.out"/>
-<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.MSP430F5529.ccxml.TI MSP430 USB1/MSP430" value="/Users/sahilmirani/Downloads/ECE_2049_Lab/Debug/ece2049_demo_ccs91.out"/>
+<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.MSP430F5529.ccxml.TI MSP430 USB1/MSP430" value="C:\Users\trexl\Downloads\ECE_2049_Lab\Debug\ece2049_demo_ccs91.out"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/ece2049_demo_ccs91"/>
 </listAttribute>
