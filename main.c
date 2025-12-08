@@ -8,7 +8,21 @@ volatile unsigned char new_second_event = 0;
 // --- Function Prototypes ---
 void configure_timer_a2(void);
 void displayTime(unsigned long int inTime);
+enum DISPLAY_STATE {RUN = 0, EDIT_DAY = 1, EDIT_MONTH = 2, EDIT_HOUR = 3, EDIT_MINUTE = 4, EDIT_SEC = 5};
+unsigned int edit_month, edit_day, edit_hour, edit_min, edit_sec;
 
+
+void initButtons(void) {
+    // S1 (P2.1)
+    P2DIR &= ~BIT1;
+    P2REN |= BIT1;
+    P2OUT |= BIT1;
+
+    // S2 (P1.1)
+    P1DIR &= ~BIT1;
+    P1REN |= BIT1;
+    P1OUT |= BIT1;
+}
 
 void configure_timer_a2() {
     TA2CTL = TASSEL_1 + MC_1 + ID_0 + TACLR; // ACLK, Up Mode, /1 divider
@@ -85,11 +99,47 @@ void displayTime(unsigned long int inTime) {
     Graphics_flushBuffer(&g_sContext);
 }
 
+void breakDownTime(unsigned long int inTime) {
+    unsigned long totalDays = inTime / 86400;
+    edit_sec = inTime % 60;
+    edit_min = (inTime / 60) % 60;
+    edit_hour = (inTime / 3600) % 24;
+
+    edit_month = 0;
+    edit_day = 0;
+
+    for (int i = 0; i < 12; i++) {
+        if (totalDays < daysInMonth[i]) {
+            edit_month = i;
+            edit_day = totalDays + 1;
+            break;
+        } else {
+            totalDays -= daysInMonth[i];
+        }
+    }
+}
+
+unsigned long int reconstructSeconds(void) {
+    unsigned long int total_seconds = 0;
+
+    for(int i = 0; i < edit_month; i++) {
+        total_seconds += daysInMonth[i] * 86400;
+    }
+
+    total_seconds += (edit_day - 1) * 86400;
+    total_seconds += edit_hour * 3600;
+    total_seconds += edit_min * 60;
+    total_seconds += edit_sec;
+
+    return total_seconds;
+}
+
 void main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
 
     initLeds();
+    initButtons();
     configDisplay();
     configure_timer_a2();
 
@@ -97,13 +147,89 @@ void main(void)
 
     Graphics_clearDisplay(&g_sContext);
 
-
+    enum GAME_STATE RUN;
     while (1)
     {
+        s1_clicked = s1Clicked();
+        s2_clicked = s2Clicked();
+        switch(state) {
+        case RUN:
+            if (new_second_event) {
+                new_second_event = 0;
+                displayTime(global_time_seconds);
+                }
 
-        if (new_second_event) {
-            new_second_event = 0;
-            displayTime(global_time_seconds);
+            if (s1_clicked) {
+                breakDownTime(global_time_seconds);
+                state = EDIT_MONTH;
+                Graphics_clearDisplay(&g_sContext);
+                }
+            break;
+        case EDIT_MONTH:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_DAY;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_DAY:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_HOUR;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_HOUR:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_MINUTE;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_MINUTE:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_SEC;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_SEC:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_MONTH;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
         }
     }
 }
