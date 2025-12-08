@@ -2,30 +2,44 @@
 #include "peripherals.h"
 #include <stdio.h>
 
+#define CALADC12_15V_30C *((unsigned int *) 0x1A1A)
+#define CALADC12_15V_85C *((unsigned int *) 0x1A1C)
+
+#define START_TIME 29089811
+
 // --- Global Variables ---
-volatile unsigned long global_time_seconds = 29089811;
+volatile unsigned long global_time_seconds = START_TIME;
 volatile unsigned char new_second_event = 0;
+volatile float degC_per_bit;
+float tempC[36];
 
 // --- Function Prototypes ---
 void configure_timer_a2(void);
 void displayTime(unsigned long int inTime);
 void displayTemp(float inAvgTempC);
 void floatTempToArray(float temp, char unit, char* tempStr);
+void config_temp_sensor(void);
+// polls mcu's temperature sensor and updates tempC
+void read_temp(void);
+// iterates through tempC array and averages values
+float get_temp_avg(void);
 
 
 #pragma vector=TIMER2_A0_VECTOR
 __interrupt void Timer_A2_ISR(void) {
     global_time_seconds++;
     new_second_event = 1;
+    read_temp();
 }
 
-void main(void)
+int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
 
     initLeds();
     configDisplay();
     configure_timer_a2();
+    config_temp_sensor();
 
     __enable_interrupt();
 
@@ -38,7 +52,7 @@ void main(void)
         if (new_second_event) {
             new_second_event = 0;
             displayTime(global_time_seconds);
-            displayTemp(40.5);
+            displayTemp(get_temp_avg());
         }
     }
 }
@@ -137,6 +151,50 @@ void floatTempToArray(float temp, char unit, char* tempStr){
     tempStr[5] = ' ';
     tempStr[6] = unit;
     tempStr[7] = '\0';
+}
+
+void config_temp_sensor(void) {
+    degC_per_bit = ((float) (85.0 - 30.0)) / ((float) (CALADC12_15V_85C - CALADC12_15V_30C));
+    REFCTL0 &= ~REFMSTR;
+
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON;
+    ADC12CTL1 = ADC12SHP;
+    ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;
+    __delay_cycles(100);
+    ADC12CTL0 |= ADC12ENC;
+}
+
+void read_temp(void) {
+    unsigned int in_temp;
+    // calculates what index to store array at, -1 to ensure it starts storing at 0
+    int index = (global_time_seconds - START_TIME - 1) % 36;
+
+    ADC12CTL0 &= ~ADC12SC;
+    ADC12CTL0 |= ADC12SC;
+
+    // waits for conversion to finish before reading into in_temp
+    while(ADC12CTL1 & ADC12BUSY)
+        __no_operation();
+    in_temp = ADC12MEM0;
+
+    // calculates temp in C and stores in array
+    tempC[index] = (float) (((long) in_temp - CALADC12_15V_30C) * degC_per_bit + 30.0);
+}
+
+float get_temp_avg(void) {
+    // uses elapsed seconds to determine how much of array to iterate through
+    int elapsedSeconds = global_time_seconds - START_TIME;
+    int maxIndex = (elapsedSeconds < 36) ? elapsedSeconds : 36;
+
+    // sums all temperature readings
+    float sum = 0;
+    int i = 0;
+    for (; i < maxIndex; i++) {
+        sum += tempC[i];
+    }
+
+    // divides temp readings by number of readings to get avg
+    return (sum / (float) maxIndex);
 
 }
 
