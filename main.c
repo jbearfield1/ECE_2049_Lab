@@ -70,6 +70,7 @@ void main(void)
 	{
 		unsigned char s1_clicked = s1Clicked();
 		unsigned char s2_clicked = s2Clicked();
+		unsigned int raw_val = getScrollWheelReading();
 		switch(state) {
 			case RUN:
 				if (new_second_event) {
@@ -89,7 +90,12 @@ void main(void)
 				break;
 			case EDIT_MONTH:
 				//Need scroll wheel logic here
-				displayEditScreen();
+//				displayEditScreen();
+				if (raw_val > 2048) {
+					setLeds(BIT0);
+				} else {
+					setLeds(BIT1);
+				}
 
 				if (s1_clicked) {
 					state = EDIT_DAY;
