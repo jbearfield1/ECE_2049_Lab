@@ -13,6 +13,8 @@ volatile float degC_per_bit;
 float tempC[36];
 enum DISPLAY_STATE {RUN = 0, EDIT_DAY = 1, EDIT_MONTH = 2, EDIT_HOUR = 3, EDIT_MINUTE = 4, EDIT_SEC = 5};
 unsigned int edit_month, edit_day, edit_hour, edit_min, edit_sec;
+int initial_scroll_value = 0;
+int MAX_ADC_VALUE = 4096;
 
 // ------------------ Function Prototypes ------------------
 void initButtons(void);
@@ -23,6 +25,8 @@ void config_temp_sensor(void);
 unsigned char s1Clicked(void);
 unsigned char s2Clicked(void);
 
+// scroll wheel reading/handling
+unsigned int getScrollWheelReading(void);
 int handle_scroll_value(int adc_value, int divisions);
 
 // displaying various data on LCD
@@ -185,18 +189,34 @@ void config_temp_sensor(void) {
 }
 
 unsigned char s1Clicked(void) {
-	return 0;
+	return !(P2IN & BIT1);
 }
 
 unsigned char s2Clicked(void) {
-	return 0;
+	return !(P1IN & BIT1);
+}
+
+unsigned int getScrollWheelReading(void) {
+    ADC12CTL0 &= ~ADC12ENC;
+
+    P6SEL |= BIT0;
+    ADC12CTL0 = ADC12SHT0_10 + ADC12ON;
+    ADC12CTL1 = ADC12CSTARTADD_0 + ADC12SHP;
+    ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0 + ADC12EOS;
+
+    ADC12CTL0 |= (ADC12SC | ADC12ENC);
+
+    while (ADC12CTL1 & ADC12BUSY)
+        __no_operation();
+
+    return ADC12MEM0;
 }
 
 int handle_scroll_value(int adc_value, int divisions) {
     if(adc_value > initial_scroll_value-5 && adc_value < initial_scroll_value+5){
         return -1;
     }
-    int initial_scroll_value = -1;
+    initial_scroll_value = -1;
 
     return adc_value / (MAX_ADC_VALUE / (divisions + 1));
 }
