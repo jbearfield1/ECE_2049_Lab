@@ -59,7 +59,6 @@ void main(void)
     __enable_interrupt();
 
     Graphics_clearDisplay(&g_sContext);
-
     enum DISPLAY_STATE state = RUN;
     while (1)
     {
@@ -170,6 +169,22 @@ void configure_timer_a2() {
     TA2CCR0 = 32767; //32768 - 1 = 32767
 
     TA2CCTL0 |= CCIE;
+}
+
+unsigned int getScrollWheelReading(void) {
+    ADC12CTL0 &= ~ADC12ENC;
+
+    P6SEL |= BIT0;
+    ADC12CTL0 = ADC12SHT0_10 + ADC12ON;
+    ADC12CTL1 = ADC12CSTARTADD_0 + ADC12SHP;
+    ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0 + ADC12EOS;
+
+    ADC12CTL0 |= (ADC12SC | ADC12ENC);
+
+    while (ADC12CTL1 & ADC12BUSY)
+        __no_operation();
+
+    return ADC12MEM0;
 }
 
 void config_temp_sensor(void) {
