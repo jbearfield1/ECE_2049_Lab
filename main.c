@@ -29,7 +29,6 @@ float get_temp_avg(void);
 __interrupt void Timer_A2_ISR(void) {
     global_time_seconds++;
     new_second_event = 1;
-    read_temp();
 }
 
 int main(void)
@@ -52,6 +51,9 @@ int main(void)
         if (new_second_event) {
             new_second_event = 0;
             displayTime(global_time_seconds);
+
+            // reads new temp, calculates new avg, updates temp display
+            read_temp();
             displayTemp(get_temp_avg());
         }
     }
@@ -188,8 +190,8 @@ float get_temp_avg(void) {
 
     // sums all temperature readings
     float sum = 0;
-    int i = 0;
-    for (; i < maxIndex; i++) {
+    int i;
+    for (i = 0; i < maxIndex; i++) {
         sum += tempC[i];
     }
 
