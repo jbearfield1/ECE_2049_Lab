@@ -13,6 +13,36 @@ void displayTemp(float inAvgTempC);
 void floatTempToArray(float temp, char unit, char* tempStr);
 
 
+#pragma vector=TIMER2_A0_VECTOR
+__interrupt void Timer_A2_ISR(void) {
+    global_time_seconds++;
+    new_second_event = 1;
+}
+
+void main(void)
+{
+    WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
+
+    initLeds();
+    configDisplay();
+    configure_timer_a2();
+
+    __enable_interrupt();
+
+    Graphics_clearDisplay(&g_sContext);
+
+
+    while (1)
+    {
+
+        if (new_second_event) {
+            new_second_event = 0;
+            displayTime(global_time_seconds);
+            displayTemp(40.5);
+        }
+    }
+}
+
 void configure_timer_a2() {
     TA2CTL = TASSEL_1 + MC_1 + ID_0 + TACLR; // ACLK, Up Mode, /1 divider
 
@@ -21,13 +51,6 @@ void configure_timer_a2() {
 
     TA2CCTL0 |= CCIE;
 }
-
-#pragma vector=TIMER2_A0_VECTOR
-__interrupt void Timer_A2_ISR(void) {
-    global_time_seconds++;
-    new_second_event = 1;
-}
-
 
 void displayTime(unsigned long int inTime) {
 
@@ -117,26 +140,4 @@ void floatTempToArray(float temp, char unit, char* tempStr){
 
 }
 
-void main(void)
-{
-    WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
 
-    initLeds();
-    configDisplay();
-    configure_timer_a2();
-
-    __enable_interrupt();
-
-    Graphics_clearDisplay(&g_sContext);
-
-
-    while (1)
-    {
-
-        if (new_second_event) {
-            new_second_event = 0;
-            displayTime(global_time_seconds);
-            displayTemp(40.5);
-        }
-    }
-}
