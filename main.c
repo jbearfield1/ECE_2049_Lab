@@ -7,22 +7,37 @@
 
 #define START_TIME 29089811
 
-// --- Global Variables ---
+// ----------------- Global Variables ----------------- 
 volatile unsigned long global_time_seconds = START_TIME;
 volatile unsigned char new_second_event = 0;
 volatile float degC_per_bit;
 float tempC[36];
+enum DISPLAY_STATE {RUN = 0, EDIT_DAY = 1, EDIT_MONTH = 2, EDIT_HOUR = 3, EDIT_MINUTE = 4, EDIT_SEC = 5};
+unsigned int edit_month, edit_day, edit_hour, edit_min, edit_sec;
 
-// --- Function Prototypes ---
+// ------------------ Function Prototypes ------------------
+void initButtons(void);
 void configure_timer_a2(void);
+void config_temp_sensor(void);
+
+// functions to poll s1 and s2
+unsigned char s1Clicked(void);
+unsigned char s2Clicked(void);
+
+// displaying various data on LCD
 void displayTime(unsigned long int inTime);
 void displayTemp(float inAvgTempC);
-void floatTempToArray(float temp, char unit, char* tempStr);
-void config_temp_sensor(void);
+void displayEditScreen(void);
+
 // polls mcu's temperature sensor and updates tempC
 void read_temp(void);
 // iterates through tempC array and averages values
 float get_temp_avg(void);
+
+// helper functions
+void floatTempToArray(float temp, char unit, char* tempStr);
+void breakDownTime(unsigned long int inTime);
+unsigned long int reconstructSeconds(void);
 
 
 #pragma vector=TIMER2_A0_VECTOR
@@ -31,11 +46,12 @@ __interrupt void Timer_A2_ISR(void) {
     new_second_event = 1;
 }
 
-int main(void)
+void main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
 
     initLeds();
+    initButtons();
     configDisplay();
     configure_timer_a2();
     config_temp_sensor();
@@ -44,19 +60,107 @@ int main(void)
 
     Graphics_clearDisplay(&g_sContext);
 
-
+    enum DISPLAY_STATE state = RUN;
     while (1)
     {
+        unsigned char s1_clicked = s1Clicked();
+        unsigned char s2_clicked = s2Clicked();
+        switch(state) {
+        case RUN:
+            if (new_second_event) {
+                new_second_event = 0;
+                displayTime(global_time_seconds);
 
-        if (new_second_event) {
-            new_second_event = 0;
-            displayTime(global_time_seconds);
+				// reads new temp, calculates new avg, updates temp display
+            	read_temp();
+            	displayTemp(get_temp_avg());
+            }
 
-            // reads new temp, calculates new avg, updates temp display
-            read_temp();
-            displayTemp(get_temp_avg());
+            if (s1_clicked) {
+                breakDownTime(global_time_seconds);
+                state = EDIT_MONTH;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_MONTH:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_DAY;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_DAY:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_HOUR;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_HOUR:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_MINUTE;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_MINUTE:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_SEC;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
+        case EDIT_SEC:
+            //Need scroll wheel logic here
+            displayEditScreen();
+
+            if (s1_clicked) {
+                state = EDIT_MONTH;
+            }
+            if (s2_clicked) {
+                global_time_seconds = reconstructSeconds();
+                state = RUN;
+                Graphics_clearDisplay(&g_sContext);
+            }
+            break;
         }
     }
+}
+
+void initButtons(void) {
+    // S1 (P2.1)
+    P2DIR &= ~BIT1;
+    P2REN |= BIT1;
+    P2OUT |= BIT1;
+
+    // S2 (P1.1)
+    P1DIR &= ~BIT1;
+    P1REN |= BIT1;
+    P1OUT |= BIT1;
 }
 
 void configure_timer_a2() {
@@ -68,8 +172,26 @@ void configure_timer_a2() {
     TA2CCTL0 |= CCIE;
 }
 
-void displayTime(unsigned long int inTime) {
+void config_temp_sensor(void) {
+    degC_per_bit = ((float) (85.0 - 30.0)) / ((float) (CALADC12_15V_85C - CALADC12_15V_30C));
+    REFCTL0 &= ~REFMSTR;
 
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON;
+    ADC12CTL1 = ADC12SHP;
+    ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;
+    __delay_cycles(100);
+    ADC12CTL0 |= ADC12ENC;
+}
+
+unsigned char s1Clicked(void) {
+	return 0;
+}
+
+unsigned char s2Clicked(void) {
+	return 0;
+}
+
+void displayTime(unsigned long int inTime) {
     const char *monthNames[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
     const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -143,27 +265,8 @@ void displayTemp(float inAvgTempC){
 
 }
 
-void floatTempToArray(float temp, char unit, char* tempStr){
-
-    tempStr[0] = (int)(temp / 100) + '0';
-    tempStr[1] = (((int)temp % 100) / 10) + '0';
-    tempStr[2] = ((int)temp % 10) + '0';
-    tempStr[3] = '.';
-    tempStr[4] = ((int)(temp*10) % 10) + '0';
-    tempStr[5] = ' ';
-    tempStr[6] = unit;
-    tempStr[7] = '\0';
-}
-
-void config_temp_sensor(void) {
-    degC_per_bit = ((float) (85.0 - 30.0)) / ((float) (CALADC12_15V_85C - CALADC12_15V_30C));
-    REFCTL0 &= ~REFMSTR;
-
-    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON;
-    ADC12CTL1 = ADC12SHP;
-    ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;
-    __delay_cycles(100);
-    ADC12CTL0 |= ADC12ENC;
+void displayEditScreen(void) {
+	return;
 }
 
 void read_temp(void) {
@@ -197,7 +300,58 @@ float get_temp_avg(void) {
 
     // divides temp readings by number of readings to get avg
     return (sum / (float) maxIndex);
-
 }
 
+void floatTempToArray(float temp, char unit, char* tempStr){
+
+    tempStr[0] = (int)(temp / 100) + '0';
+    tempStr[1] = (((int)temp % 100) / 10) + '0';
+    tempStr[2] = ((int)temp % 10) + '0';
+    tempStr[3] = '.';
+    tempStr[4] = ((int)(temp*10) % 10) + '0';
+    tempStr[5] = ' ';
+    tempStr[6] = unit;
+    tempStr[7] = '\0';
+}
+
+void breakDownTime(unsigned long int inTime) {
+    const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+    unsigned long totalDays = inTime / 86400;
+    edit_sec = inTime % 60;
+    edit_min = (inTime / 60) % 60;
+    edit_hour = (inTime / 3600) % 24;
+
+    edit_month = 0;
+    edit_day = 0;
+
+	int i;
+    for (i = 0; i < 12; i++) {
+        if (totalDays < daysInMonth[i]) {
+            edit_month = i;
+            edit_day = totalDays + 1;
+            break;
+        } else {
+            totalDays -= daysInMonth[i];
+        }
+    }
+}
+
+unsigned long int reconstructSeconds(void) {
+    const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+    unsigned long int total_seconds = 0;
+
+	int i;
+    for(i = 0; i < edit_month; i++) {
+        total_seconds += daysInMonth[i] * 86400;
+    }
+
+    total_seconds += (edit_day - 1) * 86400;
+    total_seconds += edit_hour * 3600;
+    total_seconds += edit_min * 60;
+    total_seconds += edit_sec;
+
+    return total_seconds;
+}
 
