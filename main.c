@@ -12,6 +12,8 @@ volatile unsigned long global_time_seconds = START_TIME;
 volatile unsigned char new_second_event = 0;
 volatile float degC_per_bit;
 float tempC[36];
+int initial_scroll_value = 0;
+int MAX_ADC_VALUE = 4096;
 
 // --- Function Prototypes ---
 void configure_timer_a2(void);
@@ -23,6 +25,7 @@ void config_temp_sensor(void);
 void read_temp(void);
 // iterates through tempC array and averages values
 float get_temp_avg(void);
+int handle_scroll_value(int adc_value, int divisions);
 
 
 #pragma vector=TIMER2_A0_VECTOR
@@ -66,6 +69,15 @@ void configure_timer_a2() {
     TA2CCR0 = 32767; //32768 - 1 = 32767
 
     TA2CCTL0 |= CCIE;
+}
+
+int handle_scroll_value(int adc_value, int divisions){
+    if(adc_value > initial_scroll_value-5 && adc_value < initial_scroll_value+5){
+        return -1;
+    }
+    int initial_scroll_value = -1;
+
+    return adc_value / (MAX_ADC_VALUE / (divisions + 1));
 }
 
 void displayTime(unsigned long int inTime) {
