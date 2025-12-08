@@ -91,11 +91,13 @@ void main(void)
 			case EDIT_MONTH:
 				//Need scroll wheel logic here
 //				displayEditScreen();
-				if (raw_val > 2048) {
-					setLeds(BIT0);
-				} else {
-					setLeds(BIT1);
-				}
+//				if (raw_val > 2048) {
+//					setLeds(BIT0);
+//				} else {
+//					setLeds(BIT1);
+//				}
+//
+				edit_month = handle_scroll_value(raw_val, 12);
 
 				if (s1_clicked) {
 					state = EDIT_DAY;
@@ -110,6 +112,9 @@ void main(void)
 				//Need scroll wheel logic here
 				displayEditScreen();
 
+				//TODO: fix divisions -- make daysInMonth global
+				edit_day = handle_scroll_value(raw_val, 12);
+
 				if (s1_clicked) {
 					state = EDIT_HOUR;
 				}
@@ -122,6 +127,8 @@ void main(void)
 			case EDIT_HOUR:
 				//Need scroll wheel logic here
 				displayEditScreen();
+
+				edit_hour = handle_scroll_value(raw_val, 24);
 
 				if (s1_clicked) {
 					state = EDIT_MINUTE;
@@ -136,6 +143,8 @@ void main(void)
 				//Need scroll wheel logic here
 				displayEditScreen();
 
+				edit_min = handle_scroll_value(raw_val, 60);
+
 				if (s1_clicked) {
 					state = EDIT_SEC;
 				}
@@ -148,6 +157,8 @@ void main(void)
 			case EDIT_SEC:
 				//Need scroll wheel logic here
 				displayEditScreen();
+
+				edit_sec = handle_scroll_value(raw_val, 60);
 
 				if (s1_clicked) {
 					state = EDIT_MONTH;
