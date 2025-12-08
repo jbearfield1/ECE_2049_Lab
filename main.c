@@ -1,6 +1,5 @@
 #include <msp430.h>
 #include "peripherals.h"
-#include <stdio.h>
 
 #define CALADC12_15V_30C *((unsigned int *) 0x1A1A)
 #define CALADC12_15V_85C *((unsigned int *) 0x1A1C)
@@ -23,6 +22,8 @@ void config_temp_sensor(void);
 // functions to poll s1 and s2
 unsigned char s1Clicked(void);
 unsigned char s2Clicked(void);
+
+int handle_scroll_value(int adc_value, int divisions);
 
 // displaying various data on LCD
 void displayTime(unsigned long int inTime);
@@ -189,6 +190,15 @@ unsigned char s1Clicked(void) {
 
 unsigned char s2Clicked(void) {
 	return 0;
+}
+
+int handle_scroll_value(int adc_value, int divisions) {
+    if(adc_value > initial_scroll_value-5 && adc_value < initial_scroll_value+5){
+        return -1;
+    }
+    int initial_scroll_value = -1;
+
+    return adc_value / (MAX_ADC_VALUE / (divisions + 1));
 }
 
 void displayTime(unsigned long int inTime) {
