@@ -6,19 +6,21 @@
 
 // ----------------- Global Variables ----------------- 
 volatile unsigned long global_time_seconds = 29089811;
-volatile unsigned long elapsedSeconds = 0;
+volatile unsigned long tempReadings = 0;
 volatile unsigned char new_second_event = 0;
 volatile float degC_per_bit;
+const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 float tempC[36];
 enum DISPLAY_STATE {RUN = 0, EDIT_DAY = 1, EDIT_MONTH = 2, EDIT_HOUR = 3, EDIT_MINUTE = 4, EDIT_SEC = 5};
-unsigned int edit_month, edit_day, edit_hour, edit_min, edit_sec;
+unsigned int currentMonth, currentDay, hr, min, sec;
 int initial_scroll_value = 0;
-int MAX_ADC_VALUE = 4096;
+int MAX_ADC_VALUE = 4095;
 
 // ------------------ Function Prototypes ------------------
 void initButtons(void);
 void configure_timer_a2(void);
 void config_temp_sensor(void);
+void config_scroll_wheel(void);
 
 // functions to poll s1 and s2
 unsigned char s1Clicked(void);
@@ -42,12 +44,13 @@ float get_temp_avg(void);
 void floatTempToArray(float temp, char unit, char* tempStr);
 void breakDownTime(unsigned long int inTime);
 unsigned long int reconstructSeconds(void);
+uint8_t clamp(uint8_t val, uint8_t min, uint8_t max);
 
 
 #pragma vector=TIMER2_A0_VECTOR
 __interrupt void Timer_A2_ISR(void) {
 	global_time_seconds++;
-	elapsedSeconds++;
+	//elapsedSeconds++;
 	new_second_event = 1;
 }
 
@@ -60,17 +63,42 @@ void main(void)
 	configDisplay();
 	configure_timer_a2();
 	config_temp_sensor();
+	config_scroll_wheel();
 
 	__enable_interrupt();
 
 	Graphics_clearDisplay(&g_sContext);
+
+	unsigned char previous_s1 = 0;
+    unsigned char previous_s2 = 0;
+
+    unsigned char startEdit = 0;
+    unsigned char exitEdit = 0;
+
 
 	enum DISPLAY_STATE state = RUN;
 	while (1)
 	{
 		unsigned char s1_clicked = s1Clicked();
 		unsigned char s2_clicked = s2Clicked();
+
+		if (s1_clicked == 1 && previous_s1 == 0) {
+		    startEdit = 1;
+		} else {
+		    startEdit = 0;
+		}
+
+		if (s2_clicked == 1 && previous_s2 == 0) {
+		    exitEdit = 1;
+		} else {
+		    exitEdit = 0;
+		}
+
+		previous_s1 = s1_clicked;
+		previous_s2 = s2_clicked;
 		unsigned int raw_val = getScrollWheelReading();
+		int newVal = -1;
+
 		switch(state) {
 			case RUN:
 				if (new_second_event) {
@@ -82,27 +110,27 @@ void main(void)
 					displayTemp(get_temp_avg());
 				}
 
-				if (s1_clicked) {
+				if (startEdit) {
 					breakDownTime(global_time_seconds);
 					state = EDIT_MONTH;
 					Graphics_clearDisplay(&g_sContext);
+					initial_scroll_value = raw_val;
 				}
 				break;
 			case EDIT_MONTH:
 				//Need scroll wheel logic here
-//				displayEditScreen();
-//				if (raw_val > 2048) {
-//					setLeds(BIT0);
-//				} else {
-//					setLeds(BIT1);
-//				}
-//
-				edit_month = handle_scroll_value(raw_val, 12);
+				displayEditScreen();
 
-				if (s1_clicked) {
+				newVal = handle_scroll_value(raw_val, 12);
+
+				if (newVal != -1)
+					currentMonth = clamp(newVal, 0, 11);
+
+				if (startEdit) {
 					state = EDIT_DAY;
+					initial_scroll_value = raw_val;
 				}
-				if (s2_clicked) {
+				if (exitEdit) {
 					global_time_seconds = reconstructSeconds();
 					state = RUN;
 					Graphics_clearDisplay(&g_sContext);
@@ -111,14 +139,17 @@ void main(void)
 			case EDIT_DAY:
 				//Need scroll wheel logic here
 				displayEditScreen();
+				
+				newVal = handle_scroll_value(raw_val, daysInMonth[currentMonth]);
 
-				//TODO: fix divisions -- make daysInMonth global
-				edit_day = handle_scroll_value(raw_val, 12);
+				if (newVal != -1) 
+					currentDay = clamp(newVal, 1, daysInMonth[currentMonth]);
 
-				if (s1_clicked) {
+				if (startEdit) {
 					state = EDIT_HOUR;
+					initial_scroll_value = raw_val;
 				}
-				if (s2_clicked) {
+				if (exitEdit) {
 					global_time_seconds = reconstructSeconds();
 					state = RUN;
 					Graphics_clearDisplay(&g_sContext);
@@ -128,12 +159,16 @@ void main(void)
 				//Need scroll wheel logic here
 				displayEditScreen();
 
-				edit_hour = handle_scroll_value(raw_val, 24);
+				newVal = handle_scroll_value(raw_val, 24);
 
-				if (s1_clicked) {
+				if (newVal != -1) 
+					hr = clamp(newVal, 0, 23);
+
+				if (startEdit) {
 					state = EDIT_MINUTE;
+					initial_scroll_value = raw_val;
 				}
-				if (s2_clicked) {
+				if (exitEdit) {
 					global_time_seconds = reconstructSeconds();
 					state = RUN;
 					Graphics_clearDisplay(&g_sContext);
@@ -143,12 +178,16 @@ void main(void)
 				//Need scroll wheel logic here
 				displayEditScreen();
 
-				edit_min = handle_scroll_value(raw_val, 60);
+				newVal = handle_scroll_value(raw_val, 60);
 
-				if (s1_clicked) {
+				if (newVal != -1) 
+					min = clamp(newVal, 0, 59);
+
+				if (startEdit) {
 					state = EDIT_SEC;
+					initial_scroll_value = raw_val;
 				}
-				if (s2_clicked) {
+				if (exitEdit) {
 					global_time_seconds = reconstructSeconds();
 					state = RUN;
 					Graphics_clearDisplay(&g_sContext);
@@ -158,12 +197,16 @@ void main(void)
 				//Need scroll wheel logic here
 				displayEditScreen();
 
-				edit_sec = handle_scroll_value(raw_val, 60);
+				newVal = handle_scroll_value(raw_val, 60);
 
-				if (s1_clicked) {
+				if (newVal != -1) 
+					sec = clamp(newVal, 0, 59);
+
+				if (startEdit) {
 					state = EDIT_MONTH;
+					initial_scroll_value = raw_val;
 				}
-				if (s2_clicked) {
+				if (exitEdit) {
 					global_time_seconds = reconstructSeconds();
 					state = RUN;
 					Graphics_clearDisplay(&g_sContext);
@@ -198,11 +241,16 @@ void config_temp_sensor(void) {
 	degC_per_bit = ((float) (85.0 - 30.0)) / ((float) (CALADC12_15V_85C - CALADC12_15V_30C));
 	REFCTL0 &= ~REFMSTR;
 
-	ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON;
-	ADC12CTL1 = ADC12SHP;
-	ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;
+	ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON | ADC12MSC;
+	ADC12CTL1 = ADC12SHP + ADC12CONSEQ_1;
+	ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_10 + ADC12EOS;
 	__delay_cycles(100);
 	ADC12CTL0 |= ADC12ENC;
+}
+
+void config_scroll_wheel(void) {
+	ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_0;
+	P6SEL |= BIT0;
 }
 
 unsigned char s1Clicked(void) {
@@ -214,19 +262,34 @@ unsigned char s2Clicked(void) {
 }
 
 unsigned int getScrollWheelReading(void) {
-	ADC12CTL0 &= ~ADC12ENC;
+//	ADC12CTL0 &= ~ADC12ENC;
+//
+//	P6SEL |= BIT0;
+//	ADC12CTL0 = ADC12SHT0_10 + ADC12ON;
+//	ADC12CTL1 = ADC12CSTARTADD_0 + ADC12SHP;
+//	ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0 + ADC12EOS;
+//
+//	ADC12CTL0 |= (ADC12SC | ADC12ENC);
 
-	P6SEL |= BIT0;
-	ADC12CTL0 = ADC12SHT0_10 + ADC12ON;
-	ADC12CTL1 = ADC12CSTARTADD_0 + ADC12SHP;
-	ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0 + ADC12EOS;
-
-	ADC12CTL0 |= (ADC12SC | ADC12ENC);
+	ADC12CTL0 &= ~ADC12SC;
+	ADC12CTL0 |= ADC12SC;
 
 	while (ADC12CTL1 & ADC12BUSY)
 		__no_operation();
 
-	return ADC12MEM0;
+	/**
+	//------------------------------------------------------------
+	ADC12CTL0 &= ~ADC12SC;
+	ADC12CTL0 |= ADC12SC;
+
+	// waits for conversion to finish before reading into in_temp
+	while(ADC12CTL1 & ADC12BUSY)
+		__no_operation();
+	in_temp = ADC12MEM0;
+	//------------------------------------------------------------
+	**/
+
+	return ADC12MEM0 & 0x0FFF;
 }
 
 int handle_scroll_value(int adc_value, int divisions) {
@@ -240,15 +303,14 @@ int handle_scroll_value(int adc_value, int divisions) {
 
 void displayTime(unsigned long int inTime) {
 	const char *monthNames[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-	const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-	unsigned int sec = inTime % 60;
-	unsigned int min = (inTime / 60) % 60;
-	unsigned int hr = (inTime / 3600) % 24;
+	sec = inTime % 60;
+	min = (inTime / 60) % 60;
+	hr = (inTime / 3600) % 24;
 
 	unsigned long totalDays = inTime / 86400;
-	unsigned int currentMonth = 0;
-	unsigned int currentDay = 0;
+	currentMonth = 0;
+	currentDay = 0;
 	unsigned int i = 0;
 	for (i = 0; i < 12; i++) {
 		if (totalDays < daysInMonth[i]) {
@@ -313,13 +375,49 @@ void displayTemp(float inAvgTempC){
 }
 
 void displayEditScreen(void) {
-	return;
+    const char *monthNames[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+
+	char dateStr[7];
+	char timeStr[9];
+
+	//Build date string: MMM DD
+	dateStr[0] = monthNames[currentMonth][0];
+	dateStr[1] = monthNames[currentMonth][1];
+	dateStr[2] = monthNames[currentMonth][2];
+	dateStr[3] = ' ';
+
+	//Build day string
+	dateStr[4] = (currentDay / 10) + '0'; // Tens digit
+	dateStr[5] = (currentDay % 10) + '0'; // Ones digit
+	dateStr[6] = '\0';
+
+
+	// Hours
+	timeStr[0] = (hr / 10) + '0';
+	timeStr[1] = (hr % 10) + '0';
+	timeStr[2] = ':';
+
+	// Minutes
+	timeStr[3] = (min / 10) + '0';
+	timeStr[4] = (min % 10) + '0';
+	timeStr[5] = ':';
+
+	// Seconds
+	timeStr[6] = (sec / 10) + '0';
+	timeStr[7] = (sec % 10) + '0';
+	timeStr[8] = '\0';
+
+	Graphics_drawStringCentered(&g_sContext, (uint8_t *)dateStr, AUTO_STRING_LENGTH, 48, 25, OPAQUE_TEXT);
+	Graphics_drawStringCentered(&g_sContext, (uint8_t *)timeStr, AUTO_STRING_LENGTH, 48, 40, OPAQUE_TEXT);
+
+	Graphics_flushBuffer(&g_sContext);
 }
 
 void read_temp(void) {
+	tempReadings++;
 	unsigned int in_temp;
 	// calculates what index to store array at, -1 to ensure it starts storing at 0
-	int index = (elapsedSeconds - 1) % 36;
+	int index = (tempReadings - 1) % 36;
 
 	ADC12CTL0 &= ~ADC12SC;
 	ADC12CTL0 |= ADC12SC;
@@ -327,7 +425,7 @@ void read_temp(void) {
 	// waits for conversion to finish before reading into in_temp
 	while(ADC12CTL1 & ADC12BUSY)
 		__no_operation();
-	in_temp = ADC12MEM0;
+	in_temp = ADC12MEM1 & 0X0FFF;
 
 	// calculates temp in C and stores in array
 	tempC[index] = (float) (((long) in_temp - CALADC12_15V_30C) * degC_per_bit + 30.0);
@@ -335,7 +433,7 @@ void read_temp(void) {
 
 float get_temp_avg(void) {
 	// uses elapsed seconds to determine how much of array to iterate through
-	int maxIndex = (elapsedSeconds < 36) ? elapsedSeconds : 36;
+	int maxIndex = (tempReadings < 36) ? tempReadings : 36;
 
 	// sums all temperature readings
 	float sum = 0;
@@ -361,21 +459,19 @@ void floatTempToArray(float temp, char unit, char* tempStr){
 }
 
 void breakDownTime(unsigned long int inTime) {
-	const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-
 	unsigned long totalDays = inTime / 86400;
-	edit_sec = inTime % 60;
-	edit_min = (inTime / 60) % 60;
-	edit_hour = (inTime / 3600) % 24;
+	sec = inTime % 60;
+	min = (inTime / 60) % 60;
+	hr = (inTime / 3600) % 24;
 
-	edit_month = 0;
-	edit_day = 0;
+	currentMonth = 0;
+	currentDay = 0;
 
 	int i;
 	for (i = 0; i < 12; i++) {
 		if (totalDays < daysInMonth[i]) {
-			edit_month = i;
-			edit_day = totalDays + 1;
+			currentMonth = i;
+			currentDay = totalDays + 1;
 			break;
 		} else {
 			totalDays -= daysInMonth[i];
@@ -384,20 +480,26 @@ void breakDownTime(unsigned long int inTime) {
 }
 
 unsigned long int reconstructSeconds(void) {
-	const uint8_t daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-
 	unsigned long int total_seconds = 0;
 
 	int i;
-	for(i = 0; i < edit_month; i++) {
+	for(i = 0; i < currentMonth; i++) {
 		total_seconds += daysInMonth[i] * 86400;
 	}
 
-	total_seconds += (edit_day - 1) * 86400;
-	total_seconds += edit_hour * 3600;
-	total_seconds += edit_min * 60;
-	total_seconds += edit_sec;
+	total_seconds += (currentDay - 1) * 86400;
+	total_seconds += hr * 3600;
+	total_seconds += min * 60;
+	total_seconds += sec;
 
 	return total_seconds;
 }
 
+uint8_t clamp(uint8_t val, uint8_t min, uint8_t max) {
+	if (val < min)
+		return min;
+	else if (val > max)
+		return max;
+	else
+		return val;
+}
